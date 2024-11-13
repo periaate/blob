@@ -58,29 +58,6 @@ func (s *Storage) Add(bType CType, bPath string, r io.Reader) (err error) {
 	return
 }
 
-func (s *Storage) Set(bType CType, bPath string, r io.Reader) (n int64, err error) {
-	fp, exists, isDir := getPath(s.Root, bPath)
-	switch {
-	case !exists:
-		err = ErrNotExists{Path: bPath}
-	case isDir:
-		err = ErrIsDir{Path: bPath}
-	default:
-		fp, err = findBlob(s.Root, bPath)
-		if err != nil {
-			return
-		}
-
-		base := fsio.Base(fp)
-		dir := fsio.Dir(fp)
-		fp = fsio.Join(dir, fmt.Sprintf("%d_%s", bType, base))
-
-		n, err = fsio.ReadTo(fp, r)
-	}
-
-	return
-}
-
 func (s *Storage) Get(bPath string) (rc io.ReadCloser, cType CType, err error) {
 	fp, _, isDir := getPath(s.Root, bPath)
 	switch {

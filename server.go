@@ -136,36 +136,6 @@ func HandleErr(w http.ResponseWriter, err error) {
 	clog.Error(err.Error())
 }
 
-func (s *Server) Set(w http.ResponseWriter, r *http.Request) {
-	cType, err := getCType(r)
-	if err != nil {
-		HandleErr(w, err)
-		return
-	}
-
-	buf, err := ensureBody(r)
-	if err != nil {
-		HandleErr(w, err)
-		return
-	}
-
-	fp := r.URL.Path
-	n, err := s.Storage.Set(cType, fp, buf)
-	if err != nil {
-		HandleErr(w, err)
-		return
-	}
-
-	if n == 0 {
-		err = ErrFatal{"no bytes written without error"}
-		HandleErr(w, err)
-		clog.Fatal("universal error", "err", err.Error(), "fp", fp)
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
-}
-
 func (s *Server) Del(w http.ResponseWriter, r *http.Request) {
 	fp := r.URL.Path
 	if err := s.Storage.Del(fp); err != nil {
