@@ -130,8 +130,23 @@ func ErrIsDirNotEmpty(err error) bool {
 	return ok
 }
 
+type ErrIllegalPath struct {
+	Path string
+}
+
+func (e ErrIllegalPath) Error() string {
+	return fmt.Sprintf("illegal path: %s", e.Path)
+}
+
+func ErrIsIllegalPath(err error) bool {
+	_, ok := err.(ErrIllegalPath)
+	return ok
+}
+
 func StatusOfErr(err error) int {
 	switch {
+	case ErrIsIllegalPath(err):
+		return 400
 	case ErrIsExists(err):
 		return 409
 	case ErrIsNoDir(err):

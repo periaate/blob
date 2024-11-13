@@ -25,7 +25,10 @@ blob
 	get: get existing blob
 */
 
-func getPath(root string, bPath string) (fp string, exists bool, isDir bool) {
+func getPath(root string, bPath string) (fp string, exists bool, isDir bool, err error) {
+	if str.Contains("..")(bPath) {
+		return "", false, false, ErrIllegalPath{bPath}
+	}
 	fp = fsio.Join(root, bPath)
 	exists = fsio.Exists(fp)
 	isDir = str.HasSuffix("/")(bPath)
@@ -33,14 +36,16 @@ func getPath(root string, bPath string) (fp string, exists bool, isDir bool) {
 }
 
 func (s *Storage) Add(bType CType, bPath string, r io.Reader) (err error) {
-	fp, exists, isDir := getPath(s.Root, bPath)
+	fp, exists, isDir, err := getPath(s.Root, bPath)
 	switch {
+	case ErrIsIllegalPath(err):
+		return
 	case exists:
 		err = ErrExists{Path: bPath}
 	case isDir:
 		err = ErrIsDir{Path: bPath}
 	case !fsio.Exists(fsio.Dir(fp)):
-		err = ErrNoDir{Path: fsio.Dir(fp)}
+		err = ErrNoDir{Path: fsio.Dir(bPath)}
 	}
 
 	if err != nil {
@@ -59,8 +64,10 @@ func (s *Storage) Add(bType CType, bPath string, r io.Reader) (err error) {
 }
 
 func (s *Storage) Get(bPath string) (rc io.ReadCloser, cType CType, err error) {
-	fp, _, isDir := getPath(s.Root, bPath)
+	fp, _, isDir, err := getPath(s.Root, bPath)
 	switch {
+	case ErrIsIllegalPath(err):
+		return
 	case isDir:
 		err = ErrIsDir{Path: bPath}
 	default:
@@ -85,11 +92,9 @@ func (s *Storage) Get(bPath string) (rc io.ReadCloser, cType CType, err error) {
 
 func findBlob(root string, bPath string) (fp string, err error) {
 	fp = fsio.Join(root, bPath)
-	fmt.Println("findBlob", fp, bPath)
 	files, err := fsio.ReadDir(fsio.Dir(fp))
-	fmt.Println("len", len(files))
 	if err != nil {
-		err = ErrNoDir{Path: fsio.Dir(fp)}
+		err = ErrNoDir{Path: fsio.Dir(bPath)}
 		return
 	}
 
@@ -102,8 +107,10 @@ func findBlob(root string, bPath string) (fp string, err error) {
 }
 
 func (s *Storage) Del(bPath string) (err error) {
-	fp, _, isDir := getPath(s.Root, bPath)
+	fp, _, isDir, err := getPath(s.Root, bPath)
 	switch {
+	case ErrIsIllegalPath(err):
+		return
 	case isDir:
 		err = ErrIsDir{Path: bPath}
 	default:
@@ -125,8 +132,10 @@ tree
 */
 
 func (s *Storage) Mkdir(dPath string) (err error) {
-	fp, exists, isDir := getPath(s.Root, dPath)
+	fp, exists, isDir, err := getPath(s.Root, dPath)
 	switch {
+	case ErrIsIllegalPath(err):
+		return
 	case exists:
 		err = ErrExists{Path: dPath, IsDir: isDir}
 	case !isDir:
@@ -139,8 +148,10 @@ func (s *Storage) Mkdir(dPath string) (err error) {
 }
 
 func (s *Storage) Rmdir(dPath string) (err error) {
-	fp, exists, isDir := getPath(s.Root, dPath)
+	fp, exists, isDir, err := getPath(s.Root, dPath)
 	switch {
+	case ErrIsIllegalPath(err):
+		return
 	case !exists:
 		err = ErrNotExists{Path: dPath, IsDir: isDir}
 	case !isDir:
@@ -161,14 +172,16 @@ func (s *Storage) Rmdir(dPath string) (err error) {
 	return
 }
 
-func (s *Storage) Lsdir(dirPath string) (blobs [][2]string, err error) {
+func (s *Storage) Lsdir(dPath string) (blobs [][2]string, err error) {
 	var res []string
-	fp, exists, isDir := getPath(s.Root, dirPath)
+	fp, exists, isDir, err := getPath(s.Root, dPath)
 	switch {
+	case ErrIsIllegalPath(err):
+		return
 	case !exists:
-		err = ErrNotExists{Path: dirPath}
+		err = ErrNotExists{Path: dPath}
 	case !isDir:
-		err = ErrBadPath{Path: dirPath, IsDir: isDir}
+		err = ErrBadPath{Path: dPath, IsDir: isDir}
 	default:
 		res, err = fsio.ReadDir(fp)
 	}

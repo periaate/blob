@@ -1,4 +1,2 @@
-# README
-
-
-Should `set` only be able to update to the same `Content-Type`?
+# blob
+Simple blob storage based on http requests and their `Content-Type` headers.
