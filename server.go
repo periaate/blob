@@ -26,7 +26,6 @@ func New(root string) *Server {
 	pred := hnet.Pre("/d/")
 
 	res.mux.HandleFunc("POST /b/", preb(res.Add))
-	res.mux.HandleFunc("PUT /b/", preb(res.Set))
 	res.mux.HandleFunc("GET /b/", preb(res.Get))
 	res.mux.HandleFunc("DELETE /b/", preb(res.Del))
 
