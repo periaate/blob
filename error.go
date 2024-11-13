@@ -117,6 +117,19 @@ func ErrIsFatal(err error) bool {
 	return ok
 }
 
+type ErrDirNotEmpty struct {
+	Path string
+}
+
+func (e ErrDirNotEmpty) Error() string {
+	return fmt.Sprintf("directory %s is not empty", e.Path)
+}
+
+func ErrIsDirNotEmpty(err error) bool {
+	_, ok := err.(ErrDirNotEmpty)
+	return ok
+}
+
 func StatusOfErr(err error) int {
 	switch {
 	case ErrIsExists(err):
@@ -128,6 +141,8 @@ func StatusOfErr(err error) int {
 	case ErrIsIsDir(err):
 		return 409
 	case ErrIsBadRequest(err):
+		return 400
+	case ErrIsDirNotEmpty(err):
 		return 400
 	case ErrIsBadPath(err):
 		return 400

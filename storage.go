@@ -102,13 +102,15 @@ func findBlob(root string, bPath string) (fp string, err error) {
 }
 
 func (s *Storage) Del(bPath string) (err error) {
-	fp, exists, isDir := getPath(s.Root, bPath)
+	fp, _, isDir := getPath(s.Root, bPath)
 	switch {
-	case !exists:
-		err = ErrNotExists{Path: bPath}
 	case isDir:
 		err = ErrIsDir{Path: bPath}
 	default:
+		fp, err = findBlob(s.Root, bPath)
+		if err != nil {
+			return
+		}
 		err = fsio.Remove(fp)
 	}
 
@@ -151,7 +153,7 @@ func (s *Storage) Rmdir(dPath string) (err error) {
 	}
 
 	if len(res) > 0 {
-		err = fmt.Errorf("directory %s is not empty", dPath)
+		err = ErrDirNotEmpty{Path: dPath}
 	} else {
 		err = fsio.Remove(fp)
 	}
