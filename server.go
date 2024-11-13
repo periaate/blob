@@ -2,13 +2,14 @@ package blob
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"path/filepath"
 
 	"github.com/periaate/blume/clog"
 	"github.com/periaate/blume/fsio"
+	"github.com/periaate/blume/x/hnet"
 )
 
 // Server struct implements http.Handler and fs.FS
@@ -23,11 +24,57 @@ func New(root string) *Server {
 		Storage: &Storage{Root: root},
 		mux:     http.NewServeMux(),
 	}
-	res.mux.HandleFunc("POST /", res.Add)
-	res.mux.HandleFunc("PUT /", res.Set)
-	res.mux.HandleFunc("GET /", res.Get)
-	res.mux.HandleFunc("DELETE /", res.Del)
+	preb := hnet.Pre("/b/")
+	pred := hnet.Pre("/d/")
+
+	res.mux.HandleFunc("POST /b/", preb(res.Add))
+	res.mux.HandleFunc("PUT /b/", preb(res.Set))
+	res.mux.HandleFunc("GET /b/", preb(res.Get))
+	res.mux.HandleFunc("DELETE /b/", preb(res.Del))
+
+	res.mux.HandleFunc("POST /d/", pred(res.DirAdd))
+	res.mux.HandleFunc("GET /d/", pred(res.DirGet))
+	res.mux.HandleFunc("DELETE /d/", pred(res.DirDel))
 	return res
+}
+
+func (s *Server) DirAdd(w http.ResponseWriter, r *http.Request) {
+	if err := s.Storage.Mkdir(r.URL.Path); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		clog.Error(err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+}
+
+func (s *Server) DirGet(w http.ResponseWriter, r *http.Request) {
+	blobs, err := s.Storage.Lsdir(r.URL.Path)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		clog.Error(err.Error())
+		return
+	}
+
+	bar, err := json.Marshal(blobs)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		clog.Error(err.Error())
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(bar)
+	w.WriteHeader(http.StatusOK)
+}
+
+func (s *Server) DirDel(w http.ResponseWriter, r *http.Request) {
+	if err := s.Storage.Rmdir(r.URL.Path); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		clog.Error(err.Error())
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) { s.mux.ServeHTTP(w, r) }
@@ -74,7 +121,8 @@ func (s *Server) Add(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fp := fsio.Join(s.Root, filepath.Base(r.URL.Path))
+	fp := r.URL.Path
+	fp = fsio.Join(s.Root, fp)
 	if err := s.Storage.Add(cType, fp, buf); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		clog.Error(err.Error())
@@ -99,7 +147,8 @@ func (s *Server) Set(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fp := fsio.Join(s.Root, filepath.Base(r.URL.Path))
+	fp := r.URL.Path
+	fp = fsio.Join(s.Root, fp)
 	n, err := s.Storage.Set(cType, fp, buf)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -117,7 +166,8 @@ func (s *Server) Set(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) Del(w http.ResponseWriter, r *http.Request) {
-	fp := fsio.Join(s.Root, filepath.Base(r.URL.Path))
+	fp := r.URL.Path
+	fp = fsio.Join(s.Root, fp)
 	if err := s.Storage.Del(fp); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		clog.Error(err.Error())
@@ -128,7 +178,8 @@ func (s *Server) Del(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) Get(w http.ResponseWriter, r *http.Request) {
-	fp := fsio.Join(s.Root, filepath.Base(r.URL.Path))
+	fp := r.URL.Path
+	fp = fsio.Join(s.Root, fp)
 	rc, cType, err := s.Storage.Get(fp)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
