@@ -5,8 +5,7 @@ import (
 	"log"
 	"net/http"
 
-	"blob"
-
+	"github.com/periaate/blob"
 	"github.com/periaate/blume/clog"
 	"github.com/periaate/blume/fsio"
 )
