@@ -3,12 +3,10 @@ package blob
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 
 	"github.com/periaate/blume/clog"
-	"github.com/periaate/blume/fsio"
 	"github.com/periaate/blume/x/hnet"
 )
 
@@ -40,8 +38,7 @@ func New(root string) *Server {
 
 func (s *Server) DirAdd(w http.ResponseWriter, r *http.Request) {
 	if err := s.Storage.Mkdir(r.URL.Path); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		clog.Error(err.Error())
+		HandleErr(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
@@ -50,15 +47,17 @@ func (s *Server) DirAdd(w http.ResponseWriter, r *http.Request) {
 func (s *Server) DirGet(w http.ResponseWriter, r *http.Request) {
 	blobs, err := s.Storage.Lsdir(r.URL.Path)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		clog.Error(err.Error())
+		HandleErr(w, err)
 		return
 	}
 
 	bar, err := json.Marshal(blobs)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		clog.Error(err.Error())
+		HandleErr(w, err)
+		return
+	}
+	if len(blobs) == 0 {
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
@@ -69,8 +68,7 @@ func (s *Server) DirGet(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) DirDel(w http.ResponseWriter, r *http.Request) {
 	if err := s.Storage.Rmdir(r.URL.Path); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		clog.Error(err.Error())
+		HandleErr(w, err)
 		return
 	}
 
@@ -82,7 +80,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) { s.mux.Serve
 func getCType(r *http.Request) (res CType, err error) {
 	contentType := r.Header.Get("Content-Type")
 	if contentType == "" {
-		err = fmt.Errorf("no Content-Type header")
+		err = ErrBadRequest{"no Content-Type header"}
 		return
 	}
 
@@ -95,12 +93,13 @@ func ensureBody(r *http.Request) (buf *bytes.Buffer, err error) {
 	buf = bytes.NewBuffer([]byte{})
 	n, err := io.Copy(buf, r.Body)
 	if err != nil {
+		err = ErrBadRequest{err.Error()}
 		return
 	}
 	defer r.Body.Close()
 
 	if n == 0 {
-		return nil, fmt.Errorf("empty body")
+		return nil, ErrBadRequest{"empty body"}
 	}
 
 	return
@@ -109,56 +108,58 @@ func ensureBody(r *http.Request) (buf *bytes.Buffer, err error) {
 func (s *Server) Add(w http.ResponseWriter, r *http.Request) {
 	cType, err := getCType(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		clog.Error(err.Error())
+		HandleErr(w, err)
 		return
 	}
 
 	buf, err := ensureBody(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		clog.Error(err.Error())
+		HandleErr(w, err)
 		return
 	}
 
 	fp := r.URL.Path
-	fp = fsio.Join(s.Root, fp)
 	if err := s.Storage.Add(cType, fp, buf); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		clog.Error(err.Error())
+		if ErrIsBadPath(err) || ErrIsExists(err) || ErrIsIsDir(err) || ErrIsNoDir(err) {
+			err = ErrBadRequest{err.Error()}
+		}
+
+		HandleErr(w, err)
 		return
 	}
 
 	w.WriteHeader(http.StatusCreated)
 }
 
+func HandleErr(w http.ResponseWriter, err error) {
+	http.Error(w, err.Error(), StatusOfErr(err))
+	clog.Error(err.Error())
+}
+
 func (s *Server) Set(w http.ResponseWriter, r *http.Request) {
 	cType, err := getCType(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		clog.Error(err.Error())
+		HandleErr(w, err)
 		return
 	}
 
 	buf, err := ensureBody(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		clog.Error(err.Error())
+		HandleErr(w, err)
 		return
 	}
 
 	fp := r.URL.Path
-	fp = fsio.Join(s.Root, fp)
 	n, err := s.Storage.Set(cType, fp, buf)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		clog.Error(err.Error())
+		HandleErr(w, err)
 		return
 	}
 
 	if n == 0 {
-		http.Error(w, "no bytes written", http.StatusInternalServerError)
-		clog.Error("no bytes written")
+		err = ErrFatal{"no bytes written without error"}
+		HandleErr(w, err)
+		clog.Fatal("universal error", "err", err.Error(), "fp", fp)
 		return
 	}
 
@@ -167,10 +168,8 @@ func (s *Server) Set(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) Del(w http.ResponseWriter, r *http.Request) {
 	fp := r.URL.Path
-	fp = fsio.Join(s.Root, fp)
 	if err := s.Storage.Del(fp); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		clog.Error(err.Error())
+		HandleErr(w, err)
 		return
 	}
 
@@ -179,16 +178,14 @@ func (s *Server) Del(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) Get(w http.ResponseWriter, r *http.Request) {
 	fp := r.URL.Path
-	fp = fsio.Join(s.Root, fp)
 	rc, cType, err := s.Storage.Get(fp)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		clog.Error(err.Error())
+		HandleErr(w, err)
 		return
 	}
 	defer rc.Close()
 
-	w.Header().Set("Content-Type", string(cType))
+	w.Header().Set("Content-Type", cType.String())
 	io.Copy(w, rc)
 }
 

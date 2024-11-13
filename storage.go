@@ -3,11 +3,13 @@ package blob
 import (
 	"fmt"
 	"io"
+	"os"
 	"strconv"
 	"strings"
 
 	"github.com/periaate/blume/clog"
 	"github.com/periaate/blume/fsio"
+	"github.com/periaate/blume/gen"
 	"github.com/periaate/blume/str"
 )
 
@@ -25,7 +27,7 @@ blob
 
 func getPath(root string, bPath string) (fp string, exists bool, isDir bool) {
 	fp = fsio.Join(root, bPath)
-	fsio.Exists(fp)
+	exists = fsio.Exists(fp)
 	isDir = str.HasSuffix("/")(bPath)
 	return
 }
@@ -37,15 +39,22 @@ func (s *Storage) Add(bType CType, bPath string, r io.Reader) (err error) {
 		err = ErrExists{Path: bPath}
 	case isDir:
 		err = ErrIsDir{Path: bPath}
-	case fsio.Exists(fsio.Dir(fp)):
-		err = ErrNoDir{Path: bPath}
+	case !fsio.Exists(fsio.Dir(fp)):
+		err = ErrNoDir{Path: fsio.Dir(fp)}
 	}
 
 	if err != nil {
 		return
 	}
 
+	base := fsio.Base(fp)
+	dir := fsio.Dir(fp)
+	fp = fsio.Join(dir, fmt.Sprintf("%d_%s", bType, base))
+
 	err = fsio.WriteNew(fp, r)
+	if os.IsNotExist(err) {
+		err = ErrNoDir{Path: bPath}
+	}
 	return
 }
 
@@ -57,6 +66,15 @@ func (s *Storage) Set(bType CType, bPath string, r io.Reader) (n int64, err erro
 	case isDir:
 		err = ErrIsDir{Path: bPath}
 	default:
+		fp, err = findBlob(s.Root, bPath)
+		if err != nil {
+			return
+		}
+
+		base := fsio.Base(fp)
+		dir := fsio.Dir(fp)
+		fp = fsio.Join(dir, fmt.Sprintf("%d_%s", bType, base))
+
 		n, err = fsio.ReadTo(fp, r)
 	}
 
@@ -64,14 +82,43 @@ func (s *Storage) Set(bType CType, bPath string, r io.Reader) (n int64, err erro
 }
 
 func (s *Storage) Get(bPath string) (rc io.ReadCloser, cType CType, err error) {
-	fp, exists, isDir := getPath(s.Root, bPath)
+	fp, _, isDir := getPath(s.Root, bPath)
 	switch {
-	case !exists:
-		err = ErrNotExists{Path: bPath}
 	case isDir:
 		err = ErrIsDir{Path: bPath}
 	default:
+		fp, err = findBlob(s.Root, bPath)
+		if err != nil {
+			return
+		}
+
+		blob := [2]string{}
+
+		blob, err = SplitBlob(fsio.Base(fp))
+		if err != nil {
+			return
+		}
+
+		cType = ContentType(blob[0])
 		rc, err = fsio.Open(fp)
+	}
+
+	return
+}
+
+func findBlob(root string, bPath string) (fp string, err error) {
+	fp = fsio.Join(root, bPath)
+	fmt.Println("findBlob", fp, bPath)
+	files, err := fsio.ReadDir(fsio.Dir(fp))
+	fmt.Println("len", len(files))
+	if err != nil {
+		err = ErrNoDir{Path: fsio.Dir(fp)}
+		return
+	}
+
+	fp = gen.First(str.HasSuffix(fsio.Base(bPath)))(files)
+	if fp == "" {
+		err = ErrNotExists{Path: bPath}
 	}
 
 	return

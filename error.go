@@ -90,3 +90,52 @@ func ErrIsUnsupportedContentType(err error) bool {
 	_, ok := err.(ErrUnsupportedContentType)
 	return ok
 }
+
+type ErrBadRequest struct {
+	Msg string
+}
+
+func (e ErrBadRequest) Error() string {
+	return fmt.Sprintf("bad request: %s", e.Msg)
+}
+
+func ErrIsBadRequest(err error) bool {
+	_, ok := err.(ErrBadRequest)
+	return ok
+}
+
+type ErrFatal struct {
+	Msg string
+}
+
+func (e ErrFatal) Error() string {
+	return fmt.Sprintf("fatal error: %s", e.Msg)
+}
+
+func ErrIsFatal(err error) bool {
+	_, ok := err.(ErrFatal)
+	return ok
+}
+
+func StatusOfErr(err error) int {
+	switch {
+	case ErrIsExists(err):
+		return 409
+	case ErrIsNoDir(err):
+		return 404
+	case ErrIsNotExists(err):
+		return 404
+	case ErrIsIsDir(err):
+		return 409
+	case ErrIsBadRequest(err):
+		return 400
+	case ErrIsBadPath(err):
+		return 400
+	case ErrIsUnsupportedContentType(err):
+		return 415
+	case ErrIsFatal(err):
+		fallthrough
+	default:
+		return 500
+	}
+}
