@@ -56,8 +56,8 @@ func (s *Storage) Add(bType CType, bPath string, r io.Reader) (err error) {
 		return
 	}
 
-	fp, err = findBlob(s.Root, bPath)
-	if err == nil || len(fp) != 0 {
+	nfp, err := findBlob(s.Root, bPath)
+	if err == nil || len(nfp) != 0 {
 		err = ErrExists{bPath, false}
 		return
 	}

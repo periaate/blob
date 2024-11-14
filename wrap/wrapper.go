@@ -2,7 +2,6 @@ package wrap
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -48,14 +47,8 @@ func (s *Storage) req(bPath string, isDir bool, method string, r io.Reader) (rq 
 	if isDir {
 		sub = "d"
 	}
-	fmt.Println("base", s.base.String())
-	fmt.Println("sub", sub)
-	fmt.Println("vRoot", s.vRoot)
-	fmt.Println("bPath", bPath)
 
 	uri := fsio.Join(s.base.String(), sub, s.vRoot, bPath)
-	fmt.Println("uri", uri)
-	fmt.Println("base", s.base.String())
 	rq, err = http.NewRequest(method, uri, r)
 	return
 }
@@ -82,11 +75,8 @@ func (s *Storage) Add(bType blob.CType, bPath string, r io.Reader) (err error) {
 		return
 	}
 
-	msg := Read(resp.Body)
-
 	err = StatusToErr(resp.StatusCode, "")
 	if err != nil {
-		clog.Error("failed to add", "err", err, "status", resp.StatusCode, "path", req.URL.String(), "method", req.Method, "type", bType, "msg", msg)
 		return
 	}
 
@@ -135,6 +125,9 @@ func (s *Storage) Get(bPath string) (r io.ReadCloser, err error) {
 }
 
 func (s *Storage) Mkdir(dPath string) (err error) {
+	if !str.HasSuffix("/")(dPath) {
+		dPath += "/"
+	}
 	req, err := s.req(dPath, true, http.MethodPost, nil)
 	if err != nil {
 		return
@@ -171,6 +164,9 @@ func StatusToErr(status int, msg string) error {
 }
 
 func (s *Storage) RmDir(dPath string) (err error) {
+	if !str.HasSuffix("/")(dPath) {
+		dPath += "/"
+	}
 	req, err := s.req(dPath, true, http.MethodDelete, nil)
 	if err != nil {
 		return
@@ -181,6 +177,9 @@ func (s *Storage) RmDir(dPath string) (err error) {
 }
 
 func (s *Storage) Lsdir(dPath string) (blobs [][2]string, err error) {
+	if !str.HasSuffix("/")(dPath) {
+		dPath += "/"
+	}
 	req, err := s.req(dPath, true, http.MethodGet, nil)
 	if err != nil {
 		return
