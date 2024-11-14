@@ -52,6 +52,12 @@ func (s *Storage) Add(bType CType, bPath string, r io.Reader) (err error) {
 		return
 	}
 
+	fp, err = findBlob(s.Root, bPath)
+	if err == nil || len(fp) == 0 {
+		err = ErrExists{bPath, false}
+		return
+	}
+
 	base := fsio.Base(fp)
 	dir := fsio.Dir(fp)
 	fp = fsio.Join(dir, fmt.Sprintf("%d_%s", bType, base))
