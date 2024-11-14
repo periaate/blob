@@ -2,6 +2,7 @@ package wrap
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -37,48 +38,55 @@ type Storage struct {
 	base  *url.URL
 }
 
-func (s *Storage) req(bPath string, isDir bool, method string) (r *http.Request, err error) {
+func (s *Storage) req(bPath string, isDir bool, method string, r io.Reader) (rq *http.Request, err error) {
 	if str.Contains("..")(bPath) {
 		err = blob.ErrIllegalPath{Path: bPath}
 		return
 	}
 
-	var uri string
-
+	sub := "b"
 	if isDir {
-		uri = fsio.Join("d", s.vRoot, bPath, "/")
-		uri = s.base.String() + "/" + uri
-	} else {
-		uri = fsio.Join("b", s.vRoot, bPath)
-		uri = s.base.String() + "/" + uri
+		sub = "d"
 	}
+	fmt.Println("base", s.base.String())
+	fmt.Println("sub", sub)
+	fmt.Println("vRoot", s.vRoot)
+	fmt.Println("bPath", bPath)
 
-	reqUrl, err := url.ParseRequestURI(uri)
-	if err != nil {
-		err = blob.ErrBadPath{Path: bPath}
-		return
-	}
+	uri := fsio.Join(s.base.String(), sub, s.vRoot, bPath)
+	fmt.Println("uri", uri)
+	fmt.Println("base", s.base.String())
+	rq, err = http.NewRequest(method, uri, r)
+	return
+}
 
-	r, err = http.NewRequest(method, reqUrl.String(), nil)
+func Read(r io.Reader) (msg string) {
+	buf := make([]byte, 1024)
+	n, _ := r.Read(buf)
+	msg = string(buf[:n])
 	return
 }
 
 func (s *Storage) Add(bType blob.CType, bPath string, r io.Reader) (err error) {
-	req, err := s.req(bPath, false, http.MethodPost)
+	req, err := s.req(bPath, false, http.MethodPost, r)
 	if err != nil {
+		clog.Error("failed to make request", "err", err)
 		return
 	}
 
-	req.Body = io.NopCloser(r)
 	req.Header.Set("Content-Type", bType.String())
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
+		clog.Error("failed to send request", "err", err)
 		return
 	}
 
+	msg := Read(resp.Body)
+
 	err = StatusToErr(resp.StatusCode, "")
 	if err != nil {
+		clog.Error("failed to add", "err", err, "status", resp.StatusCode, "path", req.URL.String(), "method", req.Method, "type", bType, "msg", msg)
 		return
 	}
 
@@ -86,13 +94,14 @@ func (s *Storage) Add(bType blob.CType, bPath string, r io.Reader) (err error) {
 }
 
 func (s *Storage) Del(bPath string) (err error) {
-	req, err := s.req(bPath, false, http.MethodDelete)
+	req, err := s.req(bPath, false, http.MethodDelete, nil)
 	if err != nil {
 		return
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
+		clog.Error("failed to delete", "err", err)
 		return
 	}
 
@@ -105,13 +114,14 @@ func (s *Storage) Del(bPath string) (err error) {
 }
 
 func (s *Storage) Get(bPath string) (r io.ReadCloser, err error) {
-	req, err := s.req(bPath, false, http.MethodGet)
+	req, err := s.req(bPath, false, http.MethodGet, nil)
 	if err != nil {
 		return
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
+		clog.Error("failed to get", "err", err)
 		return
 	}
 
@@ -125,7 +135,7 @@ func (s *Storage) Get(bPath string) (r io.ReadCloser, err error) {
 }
 
 func (s *Storage) Mkdir(dPath string) (err error) {
-	req, err := s.req(dPath, true, http.MethodPost)
+	req, err := s.req(dPath, true, http.MethodPost, nil)
 	if err != nil {
 		return
 	}
@@ -161,7 +171,7 @@ func StatusToErr(status int, msg string) error {
 }
 
 func (s *Storage) RmDir(dPath string) (err error) {
-	req, err := s.req(dPath, true, http.MethodDelete)
+	req, err := s.req(dPath, true, http.MethodDelete, nil)
 	if err != nil {
 		return
 	}
@@ -171,7 +181,7 @@ func (s *Storage) RmDir(dPath string) (err error) {
 }
 
 func (s *Storage) Lsdir(dPath string) (blobs [][2]string, err error) {
-	req, err := s.req(dPath, true, http.MethodGet)
+	req, err := s.req(dPath, true, http.MethodGet, nil)
 	if err != nil {
 		return
 	}

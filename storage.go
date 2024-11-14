@@ -28,14 +28,19 @@ func getPath(root string, bPath string) (fp string, exists bool, isDir bool, err
 	if str.Contains("..")(bPath) {
 		return "", false, false, ErrIllegalPath{bPath}
 	}
+
+	clog.Debug("get path", "root", root, "path", bPath)
 	fp = fsio.Join(root, bPath)
+	clog.Debug("joined path", "fp", fp)
 	exists = fsio.Exists(fp)
 	isDir = str.HasSuffix("/")(bPath)
 	return
 }
 
 func (s *Storage) Add(bType CType, bPath string, r io.Reader) (err error) {
+	clog.Debug("adding blob in storage", "type", bType, "root", s.Root, "bPath", bPath)
 	fp, exists, isDir, err := getPath(s.Root, bPath)
+	clog.Debug("add blob", "path", bPath, "exists", exists, "isDir", isDir, "err", err)
 	switch {
 	case ErrIs[ErrIllegalPath](err):
 		return
@@ -52,7 +57,7 @@ func (s *Storage) Add(bType CType, bPath string, r io.Reader) (err error) {
 	}
 
 	fp, err = findBlob(s.Root, bPath)
-	if err == nil || len(fp) == 0 {
+	if err == nil || len(fp) != 0 {
 		err = ErrExists{bPath, false}
 		return
 	}

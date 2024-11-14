@@ -106,12 +106,14 @@ func ensureBody(r *http.Request) (buf *bytes.Buffer, err error) {
 func (s *Server) Add(w http.ResponseWriter, r *http.Request) {
 	cType, err := getCType(r)
 	if err != nil {
+		clog.Error("failed to get content type", "err", err)
 		HandleErr(w, err)
 		return
 	}
 
 	buf, err := ensureBody(r)
 	if err != nil {
+		clog.Error("failed to ensure body", "err", err)
 		HandleErr(w, err)
 		return
 	}
