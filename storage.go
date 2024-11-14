@@ -20,7 +20,6 @@ type Storage struct {
 /*
 blob
 	add: add new blob
-	set: set existing blob
 	del: delete existing blob
 	get: get existing blob
 */
@@ -38,7 +37,7 @@ func getPath(root string, bPath string) (fp string, exists bool, isDir bool, err
 func (s *Storage) Add(bType CType, bPath string, r io.Reader) (err error) {
 	fp, exists, isDir, err := getPath(s.Root, bPath)
 	switch {
-	case ErrIsIllegalPath(err):
+	case ErrIs[ErrIllegalPath](err):
 		return
 	case exists:
 		err = ErrExists{Path: bPath}
@@ -72,7 +71,7 @@ func (s *Storage) Add(bType CType, bPath string, r io.Reader) (err error) {
 func (s *Storage) Get(bPath string) (rc io.ReadCloser, cType CType, err error) {
 	fp, _, isDir, err := getPath(s.Root, bPath)
 	switch {
-	case ErrIsIllegalPath(err):
+	case ErrIs[ErrIllegalPath](err):
 		return
 	case isDir:
 		err = ErrIsDir{Path: bPath}
@@ -115,7 +114,7 @@ func findBlob(root string, bPath string) (fp string, err error) {
 func (s *Storage) Del(bPath string) (err error) {
 	fp, _, isDir, err := getPath(s.Root, bPath)
 	switch {
-	case ErrIsIllegalPath(err):
+	case ErrIs[ErrIllegalPath](err):
 		return
 	case isDir:
 		err = ErrIsDir{Path: bPath}
@@ -140,7 +139,7 @@ tree
 func (s *Storage) Mkdir(dPath string) (err error) {
 	fp, exists, isDir, err := getPath(s.Root, dPath)
 	switch {
-	case ErrIsIllegalPath(err):
+	case ErrIs[ErrIllegalPath](err):
 		return
 	case exists:
 		err = ErrExists{Path: dPath, IsDir: isDir}
@@ -156,7 +155,7 @@ func (s *Storage) Mkdir(dPath string) (err error) {
 func (s *Storage) Rmdir(dPath string) (err error) {
 	fp, exists, isDir, err := getPath(s.Root, dPath)
 	switch {
-	case ErrIsIllegalPath(err):
+	case ErrIs[ErrIllegalPath](err):
 		return
 	case !exists:
 		err = ErrNotExists{Path: dPath, IsDir: isDir}
@@ -182,7 +181,7 @@ func (s *Storage) Lsdir(dPath string) (blobs [][2]string, err error) {
 	var res []string
 	fp, exists, isDir, err := getPath(s.Root, dPath)
 	switch {
-	case ErrIsIllegalPath(err):
+	case ErrIs[ErrIllegalPath](err):
 		return
 	case !exists:
 		err = ErrNotExists{Path: dPath}

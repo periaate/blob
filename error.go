@@ -2,11 +2,11 @@ package blob
 
 import "fmt"
 
-func getKind(isDir bool) string {
-	if isDir {
-		return "directory"
+func Or[A any](cond bool, a, b A) A {
+	if cond {
+		return a
 	}
-	return "file"
+	return b
 }
 
 type ErrExists struct {
@@ -15,26 +15,12 @@ type ErrExists struct {
 }
 
 func (e ErrExists) Error() string {
-	return fmt.Sprintf("%s exists: %s", getKind(e.IsDir), e.Path)
+	return fmt.Sprintf("%s exists: %s", Or(e.IsDir, "dir", "file"), e.Path)
 }
 
-func ErrIsExists(err error) bool {
-	_, ok := err.(ErrExists)
-	return ok
-}
+type ErrNoDir struct{ Path string }
 
-type ErrNoDir struct {
-	Path string
-}
-
-func (e ErrNoDir) Error() string {
-	return fmt.Sprintf("no directory: %s", e.Path)
-}
-
-func ErrIsNoDir(err error) bool {
-	_, ok := err.(ErrNoDir)
-	return ok
-}
+func (e ErrNoDir) Error() string { return fmt.Sprintf("no directory: %s", e.Path) }
 
 type ErrNotExists struct {
 	Path  string
@@ -42,40 +28,19 @@ type ErrNotExists struct {
 }
 
 func (e ErrNotExists) Error() string {
-	return fmt.Sprintf("%s not exists: %s", getKind(e.IsDir), e.Path)
+	return fmt.Sprintf("%s not exists: %s", Or(e.IsDir, "dir", "file"), e.Path)
 }
 
-func ErrIsNotExists(err error) bool {
-	_, ok := err.(ErrNotExists)
-	return ok
-}
+type ErrIsDir struct{ Path string }
 
-type ErrIsDir struct {
-	Path string
-}
-
-func (e ErrIsDir) Error() string {
-	return fmt.Sprintf("is directory: %s", e.Path)
-}
-
-func ErrIsIsDir(err error) bool {
-	_, ok := err.(ErrIsDir)
-	return ok
-}
+func (e ErrIsDir) Error() string { return fmt.Sprintf("is directory: %s", e.Path) }
 
 type ErrBadPath struct {
 	Path  string
 	IsDir bool
 }
 
-func (e ErrBadPath) Error() string {
-	return fmt.Sprintf("bad path: %s", e.Path)
-}
-
-func ErrIsBadPath(err error) bool {
-	_, ok := err.(ErrBadPath)
-	return ok
-}
+func (e ErrBadPath) Error() string { return fmt.Sprintf("bad path: %s", e.Path) }
 
 type ErrUnsupportedContentType struct {
 	Path string
@@ -86,85 +51,49 @@ func (e ErrUnsupportedContentType) Error() string {
 	return fmt.Sprintf("unsupported content type: %s for %s", e.Type.String(), e.Path)
 }
 
-func ErrIsUnsupportedContentType(err error) bool {
-	_, ok := err.(ErrUnsupportedContentType)
-	return ok
-}
+type ErrBadRequest struct{ Msg string }
 
-type ErrBadRequest struct {
-	Msg string
-}
+func (e ErrBadRequest) Error() string { return fmt.Sprintf("bad request: %s", e.Msg) }
 
-func (e ErrBadRequest) Error() string {
-	return fmt.Sprintf("bad request: %s", e.Msg)
-}
+type ErrFatal struct{ Msg string }
 
-func ErrIsBadRequest(err error) bool {
-	_, ok := err.(ErrBadRequest)
-	return ok
-}
+func (e ErrFatal) Error() string { return fmt.Sprintf("fatal error: %s", e.Msg) }
 
-type ErrFatal struct {
-	Msg string
-}
+type ErrDirNotEmpty struct{ Path string }
 
-func (e ErrFatal) Error() string {
-	return fmt.Sprintf("fatal error: %s", e.Msg)
-}
+func (e ErrDirNotEmpty) Error() string { return fmt.Sprintf("directory %s is not empty", e.Path) }
 
-func ErrIsFatal(err error) bool {
-	_, ok := err.(ErrFatal)
-	return ok
-}
+type ErrIllegalPath struct{ Path string }
 
-type ErrDirNotEmpty struct {
-	Path string
-}
+func (e ErrIllegalPath) Error() string { return fmt.Sprintf("illegal path: %s", e.Path) }
 
-func (e ErrDirNotEmpty) Error() string {
-	return fmt.Sprintf("directory %s is not empty", e.Path)
-}
-
-func ErrIsDirNotEmpty(err error) bool {
-	_, ok := err.(ErrDirNotEmpty)
-	return ok
-}
-
-type ErrIllegalPath struct {
-	Path string
-}
-
-func (e ErrIllegalPath) Error() string {
-	return fmt.Sprintf("illegal path: %s", e.Path)
-}
-
-func ErrIsIllegalPath(err error) bool {
-	_, ok := err.(ErrIllegalPath)
+func ErrIs[A any](err error) bool {
+	_, ok := err.(A)
 	return ok
 }
 
 func StatusOfErr(err error) int {
-	switch {
-	case ErrIsIllegalPath(err):
+	switch err.(type) {
+	case ErrIllegalPath:
 		return 400
-	case ErrIsExists(err):
+	case ErrExists:
 		return 409
-	case ErrIsNoDir(err):
+	case ErrNoDir:
 		return 404
-	case ErrIsNotExists(err):
+	case ErrNotExists:
 		return 404
-	case ErrIsIsDir(err):
+	case ErrIsDir:
 		return 409
-	case ErrIsBadRequest(err):
+	case ErrBadRequest:
 		return 400
-	case ErrIsDirNotEmpty(err):
+	case ErrDirNotEmpty:
 		return 400
-	case ErrIsBadPath(err):
+	case ErrBadPath:
 		return 400
-	case ErrIsUnsupportedContentType(err):
+	case ErrUnsupportedContentType:
 		return 415
-	case ErrIsFatal(err):
-		fallthrough
+	case ErrFatal:
+		return 500
 	default:
 		return 500
 	}

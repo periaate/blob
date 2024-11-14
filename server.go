@@ -118,7 +118,10 @@ func (s *Server) Add(w http.ResponseWriter, r *http.Request) {
 
 	fp := r.URL.Path
 	if err := s.Storage.Add(cType, fp, buf); err != nil {
-		if ErrIsBadPath(err) || ErrIsExists(err) || ErrIsIsDir(err) || ErrIsNoDir(err) {
+		if ErrIs[ErrBadPath](err) ||
+			ErrIs[ErrExists](err) ||
+			ErrIs[ErrIsDir](err) ||
+			ErrIs[ErrNoDir](err) {
 			err = ErrBadRequest{err.Error()}
 		}
 
