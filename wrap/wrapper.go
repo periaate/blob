@@ -26,6 +26,14 @@ func New(base string, vRoot string) (s *Storage, err error) {
 		vRoot: vRoot,
 		base:  u,
 	}
+
+	if vRoot != "" {
+		err = s.Mkdir(vRoot)
+		if blob.ErrIs[blob.ErrExists](err) {
+			err = nil
+		}
+	}
+
 	return
 }
 
