@@ -23,7 +23,7 @@ func New(base string, vRoot string) (s *Storage, err error) {
 	clog.Debug("new storage", "base", u.String(), "vRoot", vRoot)
 
 	s = &Storage{
-		vRoot: vRoot,
+		vRoot: "",
 		base:  u,
 	}
 
@@ -32,6 +32,7 @@ func New(base string, vRoot string) (s *Storage, err error) {
 		if blob.ErrIs[blob.ErrExists](err) {
 			err = nil
 		}
+		s.vRoot = vRoot
 	}
 
 	return
