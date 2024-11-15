@@ -141,7 +141,7 @@ tree
 	lsdir: list blobs in directory
 */
 
-func (s *Storage) Mkdir(dPath string) (err error) {
+func (s *Storage) MkDir(dPath string) (err error) {
 	fp, exists, isDir, err := getPath(s.Root, dPath)
 	switch {
 	case ErrIs[ErrIllegalPath](err):
@@ -157,7 +157,7 @@ func (s *Storage) Mkdir(dPath string) (err error) {
 	return
 }
 
-func (s *Storage) Rmdir(dPath string) (err error) {
+func (s *Storage) RmDir(dPath string) (err error) {
 	fp, exists, isDir, err := getPath(s.Root, dPath)
 	switch {
 	case ErrIs[ErrIllegalPath](err):
@@ -182,7 +182,7 @@ func (s *Storage) Rmdir(dPath string) (err error) {
 	return
 }
 
-func (s *Storage) Lsdir(dPath string) (blobs [][2]string, err error) {
+func (s *Storage) LsDir(dPath string) (blobs [][2]string, err error) {
 	var res []string
 	fp, exists, isDir, err := getPath(s.Root, dPath)
 	switch {

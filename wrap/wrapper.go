@@ -28,7 +28,7 @@ func New(base string, vRoot string) (s *Storage, err error) {
 	}
 
 	if vRoot != "" {
-		err = s.Mkdir(vRoot)
+		err = s.MkDir(vRoot)
 		if blob.ErrIs[blob.ErrExists](err) {
 			err = nil
 		}
@@ -111,7 +111,7 @@ func (s *Storage) Del(bPath string) (err error) {
 	return
 }
 
-func (s *Storage) Get(bPath string) (r io.ReadCloser, err error) {
+func (s *Storage) Get(bPath string) (r io.ReadCloser, ctype blob.CType, err error) {
 	req, err := s.req(bPath, false, http.MethodGet, nil)
 	if err != nil {
 		return
@@ -129,10 +129,11 @@ func (s *Storage) Get(bPath string) (r io.ReadCloser, err error) {
 	}
 
 	r = resp.Body
+	ctype = blob.ContentType(resp.Header.Get("Content-Type"))
 	return
 }
 
-func (s *Storage) Mkdir(dPath string) (err error) {
+func (s *Storage) MkDir(dPath string) (err error) {
 	if !str.HasSuffix("/")(dPath) {
 		dPath += "/"
 	}
@@ -184,7 +185,7 @@ func (s *Storage) RmDir(dPath string) (err error) {
 	return
 }
 
-func (s *Storage) Lsdir(dPath string) (blobs [][2]string, err error) {
+func (s *Storage) LsDir(dPath string) (blobs [][2]string, err error) {
 	if !str.HasSuffix("/")(dPath) {
 		dPath += "/"
 	}

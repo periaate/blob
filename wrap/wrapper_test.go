@@ -12,18 +12,6 @@ import (
 func TestWrapper(t *testing.T) {
 	clog.SetLogLoggerLevel(clog.LevelDebug)
 
-	// s := blob.New("test")
-	// if s == nil {
-	// 	t.Fatal("failed to create a new blob storage")
-	// }
-	//
-	// go func() {
-	// 	addr := "127.0.0.1:8085"
-	// 	clog.Info("starting server", "addr", fmt.Sprintf("http://%s", addr))
-	// 	log.Fatal(http.ListenAndServe(addr, s))
-	// }()
-	//
-
 	wrapper, err := New("http://127.0.0.1:8085", "")
 	if err != nil {
 		t.Fatalf("failed to create a new wrapper storage %s", err)
@@ -41,11 +29,11 @@ func TestWrapper(t *testing.T) {
 	wrapper.Del("test/AAAAAAAAAAAAAAAAAAA")
 	wrapper.RmDir("test/")
 
-	if err := wrapper.Mkdir("test/"); err != nil {
+	if err := wrapper.MkDir("test/"); err != nil {
 		t.Fatalf("failed to create a new directory %s", err)
 	}
 
-	if err := wrapper.Mkdir("test/"); err == nil {
+	if err := wrapper.MkDir("test/"); err == nil {
 		t.Fatalf("created a directory that already exists %s", err)
 	}
 
@@ -57,7 +45,7 @@ func TestWrapper(t *testing.T) {
 		t.Fatalf("added a blob that already exists %s", err)
 	}
 
-	if val, err := wrapper.Get("test/AAAAAAAAAAAAAAAAAAA"); err != nil {
+	if val, _, err := wrapper.Get("test/AAAAAAAAAAAAAAAAAAA"); err != nil {
 		t.Fatalf("failed to get a blob %s", err)
 	} else {
 		defer val.Close()

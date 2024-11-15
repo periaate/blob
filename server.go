@@ -36,7 +36,7 @@ func New(root string) *Server {
 }
 
 func (s *Server) DirAdd(w http.ResponseWriter, r *http.Request) {
-	if err := s.Storage.Mkdir(r.URL.Path); err != nil {
+	if err := s.Storage.MkDir(r.URL.Path); err != nil {
 		HandleErr(w, err)
 		return
 	}
@@ -44,7 +44,7 @@ func (s *Server) DirAdd(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) DirGet(w http.ResponseWriter, r *http.Request) {
-	blobs, err := s.Storage.Lsdir(r.URL.Path)
+	blobs, err := s.Storage.LsDir(r.URL.Path)
 	if err != nil {
 		HandleErr(w, err)
 		return
@@ -65,7 +65,7 @@ func (s *Server) DirGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) DirDel(w http.ResponseWriter, r *http.Request) {
-	if err := s.Storage.Rmdir(r.URL.Path); err != nil {
+	if err := s.Storage.RmDir(r.URL.Path); err != nil {
 		HandleErr(w, err)
 		return
 	}
