@@ -1,22 +1,8 @@
 package blob
 
-import "io"
+type ContentType int
 
-var _ Storager = &Storage{}
-
-type Storager interface {
-	Add(bType CType, bPath string, r io.Reader) (err error)
-	Del(bPath string) (err error)
-	Get(bPath string) (r io.ReadCloser, ctype CType, err error)
-
-	MkDir(dPath string) (err error)
-	RmDir(dPath string) (err error)
-	LsDir(dPath string) (blobs [][2]string, err error)
-}
-
-type CType int
-
-func (c CType) String() string {
+func (c ContentType) String() string {
 	switch c {
 	case STREAM:
 		return "application/octet-stream"
@@ -51,7 +37,7 @@ func (c CType) String() string {
 	}
 }
 
-func ContentType(str string) CType {
+func GetCT(str string) ContentType {
 	switch str {
 	case "text/plain":
 		return PLAIN
@@ -87,7 +73,7 @@ func ContentType(str string) CType {
 }
 
 const (
-	STREAM CType = iota
+	STREAM ContentType = iota
 	PLAIN
 	HTML
 	JSON

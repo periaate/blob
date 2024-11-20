@@ -10,11 +10,11 @@ import (
 	"github.com/periaate/blume/clog"
 	"github.com/periaate/blume/fsio"
 	"github.com/periaate/blume/str"
+	"github.com/periaate/blume/x/hnet"
 )
 
-var _ blob.Storager = &Storage{}
-
 func New(base string, vRoot string) (s *Storage, err error) {
+	base = hnet.URL(base)
 	u, err := url.Parse(base)
 	if err != nil {
 		return
@@ -69,14 +69,14 @@ func Read(r io.Reader) (msg string) {
 	return
 }
 
-func (s *Storage) Add(bType blob.CType, bPath string, r io.Reader) (err error) {
+func (s *Storage) Add(bPath string, r io.Reader, ct blob.ContentType) (err error) {
 	req, err := s.req(bPath, false, http.MethodPost, r)
 	if err != nil {
 		clog.Error("failed to make request", "err", err)
 		return
 	}
 
-	req.Header.Set("Content-Type", bType.String())
+	req.Header.Set("Content-Type", ct.String())
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -112,8 +112,9 @@ func (s *Storage) Del(bPath string) (err error) {
 	return
 }
 
-func (s *Storage) Get(bPath string) (r io.ReadCloser, ctype blob.CType, err error) {
+func (s *Storage) Get(bPath string) (r io.ReadCloser, ct blob.ContentType, err error) {
 	req, err := s.req(bPath, false, http.MethodGet, nil)
+	clog.Debug("get request", "uri", req.URL.String(), "err", err)
 	if err != nil {
 		return
 	}
@@ -130,7 +131,7 @@ func (s *Storage) Get(bPath string) (r io.ReadCloser, ctype blob.CType, err erro
 	}
 
 	r = resp.Body
-	ctype = blob.ContentType(resp.Header.Get("Content-Type"))
+	ct = blob.GetCT(resp.Header.Get("Content-Type"))
 	return
 }
 

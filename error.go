@@ -1,13 +1,10 @@
 package blob
 
-import "fmt"
+import (
+	"fmt"
 
-func Or[A any](cond bool, a, b A) A {
-	if cond {
-		return a
-	}
-	return b
-}
+	"github.com/periaate/blume/gen"
+)
 
 type ErrExists struct {
 	Path  string
@@ -15,7 +12,7 @@ type ErrExists struct {
 }
 
 func (e ErrExists) Error() string {
-	return fmt.Sprintf("%s exists: %s", Or(e.IsDir, "dir", "file"), e.Path)
+	return fmt.Sprintf("%s exists: %s", gen.Tern(e.IsDir, "dir", "file"), e.Path)
 }
 
 type ErrNoDir struct{ Path string }
@@ -28,7 +25,7 @@ type ErrNotExists struct {
 }
 
 func (e ErrNotExists) Error() string {
-	return fmt.Sprintf("%s not exists: %s", Or(e.IsDir, "dir", "file"), e.Path)
+	return fmt.Sprintf("%s not exists: %s", gen.Tern(e.IsDir, "dir", "file"), e.Path)
 }
 
 type ErrIsDir struct{ Path string }
@@ -44,7 +41,7 @@ func (e ErrBadPath) Error() string { return fmt.Sprintf("bad path: %s", e.Path) 
 
 type ErrUnsupportedContentType struct {
 	Path string
-	Type CType
+	Type ContentType
 }
 
 func (e ErrUnsupportedContentType) Error() string {

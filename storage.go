@@ -6,202 +6,93 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/periaate/blume/clog"
 	"github.com/periaate/blume/fsio"
-	"github.com/periaate/blume/gen"
 	"github.com/periaate/blume/str"
 )
 
-type Storage struct {
-	Root string
+type Blob struct {
+	Name  string
+	IsDir bool
+	Type  ContentType
+	mut   sync.Mutex
 }
 
-/*
-blob
-	add: add new blob
-	del: delete existing blob
-	get: get existing blob
-*/
-
-func getPath(root string, bPath string) (fp string, exists bool, isDir bool, err error) {
-	if str.Contains("..")(bPath) {
-		return "", false, false, ErrIllegalPath{bPath}
-	}
-
-	clog.Debug("get path", "root", root, "path", bPath)
-	fp = fsio.Join(root, bPath)
-	clog.Debug("joined path", "fp", fp)
-	exists = fsio.Exists(fp)
-	isDir = str.HasSuffix("/")(bPath)
-	return
-}
-
-func (s *Storage) Add(bType CType, bPath string, r io.Reader) (err error) {
-	clog.Debug("adding blob in storage", "type", bType, "root", s.Root, "bPath", bPath)
-	fp, exists, isDir, err := getPath(s.Root, bPath)
-	clog.Debug("add blob", "path", bPath, "exists", exists, "isDir", isDir, "err", err)
-	switch {
-	case ErrIs[ErrIllegalPath](err):
-		return
-	case exists:
-		err = ErrExists{Path: bPath}
-	case isDir:
-		err = ErrIsDir{Path: bPath}
-	case !fsio.Exists(fsio.Dir(fp)):
-		err = ErrNoDir{Path: fsio.Dir(bPath)}
-	}
-
+// io.Reader
+func (b *Blob) Read(p []byte) (n int, err error) {
+	b.mut.Lock()
+	defer b.mut.Unlock()
+	f, err := os.Open(b.Name)
 	if err != nil {
 		return
 	}
-
-	nfp, err := findBlob(s.Root, bPath)
-	if err == nil || len(nfp) != 0 {
-		err = ErrExists{bPath, false}
-		return
-	}
-
-	base := fsio.Base(fp)
-	dir := fsio.Dir(fp)
-	fp = fsio.Join(dir, fmt.Sprintf("%d_%s", bType, base))
-
-	err = fsio.WriteNew(fp, r)
-	if os.IsNotExist(err) {
-		err = ErrNoDir{Path: bPath}
-	}
-	return
+	defer f.Close()
+	return f.Read(p)
 }
 
-func (s *Storage) Get(bPath string) (rc io.ReadCloser, cType CType, err error) {
-	fp, _, isDir, err := getPath(s.Root, bPath)
-	switch {
-	case ErrIs[ErrIllegalPath](err):
-		return
-	case isDir:
-		err = ErrIsDir{Path: bPath}
-	default:
-		fp, err = findBlob(s.Root, bPath)
-		if err != nil {
-			return
-		}
-
-		blob := [2]string{}
-
-		blob, err = SplitBlob(fsio.Base(fp))
-		if err != nil {
-			return
-		}
-
-		cType = ContentType(blob[0])
-		rc, err = fsio.Open(fp)
-	}
-
-	return
-}
-
-func findBlob(root string, bPath string) (fp string, err error) {
-	fp = fsio.Join(root, bPath)
-	files, err := fsio.ReadDir(fsio.Dir(fp))
-	if err != nil {
-		err = ErrNoDir{Path: fsio.Dir(bPath)}
-		return
-	}
-
-	fp = gen.First(str.HasSuffix(fsio.Base(bPath)))(files)
-	if fp == "" {
-		err = ErrNotExists{Path: bPath}
-	}
-
-	return
-}
-
-func (s *Storage) Del(bPath string) (err error) {
-	fp, _, isDir, err := getPath(s.Root, bPath)
-	switch {
-	case ErrIs[ErrIllegalPath](err):
-		return
-	case isDir:
-		err = ErrIsDir{Path: bPath}
-	default:
-		fp, err = findBlob(s.Root, bPath)
-		if err != nil {
-			return
-		}
-		err = fsio.Remove(fp)
-	}
-
-	return
-}
-
-/*
-tree
-	mkdir: make new directory
-	rmdir: delete existing directory
-	lsdir: list blobs in directory
-*/
-
-func (s *Storage) MkDir(dPath string) (err error) {
-	fp, exists, isDir, err := getPath(s.Root, dPath)
-	switch {
-	case ErrIs[ErrIllegalPath](err):
-		return
-	case exists:
-		err = ErrExists{Path: dPath, IsDir: isDir}
-	case !isDir:
-		err = ErrBadPath{Path: dPath}
-	default:
-		err = fsio.EnsureDir(fp)
-	}
-
-	return
-}
-
-func (s *Storage) RmDir(dPath string) (err error) {
-	fp, exists, isDir, err := getPath(s.Root, dPath)
-	switch {
-	case ErrIs[ErrIllegalPath](err):
-		return
-	case !exists:
-		err = ErrNotExists{Path: dPath, IsDir: isDir}
-	case !isDir:
-		err = ErrBadPath{Path: dPath}
-	}
-
-	res, err := fsio.ReadDir(fp)
+// io.Writer
+func (b *Blob) Write(p []byte) (n int, err error) {
+	b.mut.Lock()
+	defer b.mut.Unlock()
+	f, err := os.Create(b.Name)
 	if err != nil {
 		return
 	}
-
-	if len(res) > 0 {
-		err = ErrDirNotEmpty{Path: dPath}
-	} else {
-		err = fsio.Remove(fp)
-	}
-
-	return
+	defer f.Close()
+	return f.Write(p)
 }
 
-func (s *Storage) LsDir(dPath string) (blobs [][2]string, err error) {
-	var res []string
-	fp, exists, isDir, err := getPath(s.Root, dPath)
-	switch {
-	case ErrIs[ErrIllegalPath](err):
-		return
-	case !exists:
-		err = ErrNotExists{Path: dPath}
-	case !isDir:
-		err = ErrBadPath{Path: dPath, IsDir: isDir}
-	default:
-		res, err = fsio.ReadDir(fp)
+func (b *Blob) Delete() (err error) {
+	if b.IsDir {
+		return ErrIsDir{b.Name}
 	}
+	b.mut.Lock()
+	defer b.mut.Unlock()
+	if fsio.IsDir(b.Name) {
+		return ErrIsDir{b.Name}
+	}
+	return os.Remove(b.Name)
+}
 
+func (b *Blob) Rm() (err error) {
+	if !b.IsDir {
+		return ErrDirNotEmpty{b.Name}
+	}
+	b.mut.Lock()
+	defer b.mut.Unlock()
+	if !fsio.IsDir(b.Name) {
+		return ErrDirNotEmpty{b.Name}
+	}
+	files, err := fsio.ReadDir(b.Name)
+	if err != nil {
+		return err
+	}
+	if len(files) == 0 {
+		return ErrDirNotEmpty{Path: b.Name}
+	}
+	return os.Remove(b.Name)
+}
+
+func (b *Blob) Ls() (blobs [][2]string, err error) {
+	if !b.IsDir {
+		err = ErrDirNotEmpty{b.Name}
+		return
+	}
+	b.mut.Lock()
+	defer b.mut.Unlock()
+	if !fsio.IsDir(b.Name) {
+		err = ErrDirNotEmpty{b.Name}
+		return
+	}
+	files, err := fsio.ReadDir(b.Name)
 	if err != nil {
 		return
 	}
 
 	var blob [2]string
-	for _, p := range res {
+	for _, p := range files {
 		blob, err = SplitBlob(fsio.Base(p))
 		if err != nil {
 			return
@@ -212,6 +103,127 @@ func (s *Storage) LsDir(dPath string) (blobs [][2]string, err error) {
 
 	return
 }
+
+func (s *Storage) Del(b *Blob) (err error) {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	err = b.Delete()
+	if err != nil {
+		return
+	}
+	delete(s.Cache, b.Name)
+	return
+}
+
+func (s *Storage) RmDir(b *Blob) (err error) {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	err = b.Rm()
+	if err != nil {
+		return
+	}
+	delete(s.Cache, b.Name)
+	return
+}
+
+type Storage struct {
+	Root  string
+	Cache map[string]*Blob
+	mut   sync.Mutex
+}
+
+/*
+blob
+	add: add new blob
+	del: delete existing blob
+	get: get existing blob
+*/
+
+func (s *Storage) MkDir(bPath string) (err error) {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	_, err = s.FindBlobMutless(bPath)
+	if err == nil {
+		return ErrExists{Path: bPath}
+	}
+	err = nil
+
+	fp := fsio.Join(s.Root, bPath)
+	err = fsio.EnsureDir(fp)
+	if err != nil {
+		return
+	}
+
+	s.Cache[fp] = &Blob{
+		Name:  fp,
+		IsDir: true,
+		mut:   sync.Mutex{},
+	}
+	return
+}
+
+func (s *Storage) Add(bPath string, r io.Reader, ct ContentType) (err error) {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	_, err = s.FindBlobMutless(bPath)
+	if err == nil {
+		return ErrExists{Path: bPath}
+	}
+	err = nil
+
+	bp := fsio.Join(s.Root, bPath)
+	base := fsio.Base(bp)
+	dir := fsio.Dir(bp)
+	bp = fsio.Join(dir, fmt.Sprintf("%d_%s", ct, base))
+
+	err = fsio.WriteNew(bp, r)
+	if os.IsNotExist(err) {
+		return ErrNoDir{Path: bPath}
+	}
+
+	if err != nil {
+		return
+	}
+
+	s.Cache[bp] = &Blob{bp, false, ct, sync.Mutex{}}
+	return
+}
+
+func (s *Storage) WithBlob(fn func(b *Blob, err error)) func(path string) {
+	return func(path string) {
+		var b *Blob
+		if str.Contains("..")(path) {
+			fn(b, ErrIllegalPath{path})
+			return
+		}
+
+		bp := fsio.Join(s.Root, path)
+		fn(s.FindBlob(bp))
+	}
+}
+
+func (s *Storage) FindBlobMutless(bp string) (b *Blob, err error) {
+	b, ok := s.Cache[bp]
+	switch {
+	case !ok:
+		return nil, ErrNotExists{}
+	default:
+		return b, nil
+	}
+}
+
+func (s *Storage) FindBlob(bp string) (b *Blob, err error) {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	return s.FindBlobMutless(bp)
+}
+
+/*
+tree
+	mkdir: make new directory
+	rmdir: delete existing directory
+	lsdir: list blobs in directory
+*/
 
 func SplitBlob(path string) (res [2]string, err error) {
 	parts := strings.Split(path, "_")
@@ -229,7 +241,7 @@ func SplitBlob(path string) (res [2]string, err error) {
 		return
 	}
 
-	contentType := CType(enumValue).String()
+	contentType := ContentType(enumValue).String()
 
 	res[0] = contentType
 	res[1] = parts[1]
