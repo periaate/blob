@@ -22,6 +22,9 @@ type Bucket struct {
 func FtoB(fp string) (bucket, name string, ct ContentType) {
 	fps := strings.TrimFunc(fp, gen.Is('\\', '/', '.'))
 	sar := str.SplitWithAll(fps, false, "/")
+	if len(sar) < 2 {
+		return
+	}
 	bucket = sar[len(sar)-2]
 	name = sar[len(sar)-1]
 	s := str.SplitWithAll(name, false, "_")
