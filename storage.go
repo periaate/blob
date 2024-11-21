@@ -3,6 +3,7 @@ package blob
 import (
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"sync"
 
@@ -30,8 +31,11 @@ func FtoB(fp string) (bucket, name string, ct ContentType) {
 	s := str.SplitWithAll(name, false, "_")
 	if len(s) > 1 {
 		ct = GetCT(s[0])
-		fmt.Println("ab", s[0], "ct", ct, "s", s[1:])
-		name = strings.Join(s[1:], "_")
+		if ct != -1 {
+			fmt.Println("ab", s[0], "ct", ct, "s", s[1:])
+			name = strings.Join(s[1:], "_")
+			ct = STREAM
+		}
 	}
 	clog.Debug("FtoB", "input", fp, "bucket", bucket, "name", name, "ct", ct)
 
@@ -145,9 +149,15 @@ func (s *Storage) Set(path string, ct ContentType, r io.Reader) (err error) {
 	bucket, name, _ := FtoB(path)
 	buck, ok := s.m[bucket]
 	if !ok {
-		err = ErrBadRequest{msg: "bucket doesn't exist"}
-		return
+		s.m[bucket] = &Bucket{
+			Name: bucket,
+			V:    make(map[string]string),
+		}
+		buck = s.m[bucket]
 	}
+
+	buck.mut.Lock()
+	defer buck.mut.Unlock()
 
 	fp := BtoF(bucket, name, ct)
 	fp = fsio.Join(s.Root, fp)
@@ -157,5 +167,31 @@ func (s *Storage) Set(path string, ct ContentType, r io.Reader) (err error) {
 	}
 
 	buck.V[name] = fp
+	return
+}
+
+func (s *Storage) Del(path string) (err error) {
+	bucket, name, _ := FtoB(path)
+	buck, ok := s.m[bucket]
+	if !ok {
+		err = ErrBadRequest{msg: "bucket doesn't exist"}
+		return
+	}
+	buck.mut.Lock()
+	defer buck.mut.Unlock()
+
+	fp, ok := buck.V[name]
+	if !ok {
+		err = ErrBadRequest{msg: "blob doesn't exist"}
+		return
+	}
+
+	fp = fsio.Join(s.Root, fp)
+	err = os.Remove(fp)
+	if err != nil {
+		return
+	}
+
+	delete(buck.V, name)
 	return
 }

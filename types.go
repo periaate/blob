@@ -85,6 +85,6 @@ func GetCT(str string) ContentType {
 	case "video/mkv", "13":
 		return MKV
 	default:
-		return STREAM
+		return -1
 	}
 }
