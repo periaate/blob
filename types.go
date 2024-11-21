@@ -2,7 +2,7 @@ package blob
 
 type ContentType int
 
-func (c ContentType) String() string {
+func (c ContentType) ToString() string {
 	switch c {
 	case STREAM:
 		return "application/octet-stream"
@@ -37,41 +37,6 @@ func (c ContentType) String() string {
 	}
 }
 
-func GetCT(str string) ContentType {
-	switch str {
-	case "text/plain":
-		return PLAIN
-	case "application/octet-stream":
-		return STREAM
-	case "text/html":
-		return HTML
-	case "application/json":
-		return JSON
-	case "text/css":
-		return CSS
-	case "text/javascript":
-		return JAVASCRIPT
-	case "audio/mp3":
-		return MP3
-	case "audio/ogg":
-		return OGG
-	case "image/jpeg":
-		return JPEG
-	case "image/png":
-		return PNG
-	case "image/gif":
-		return GIF
-	case "video/mp4":
-		return MP4
-	case "video/webm":
-		return WEBM
-	case "video/mkv":
-		return MKV
-	default:
-		return STREAM
-	}
-}
-
 const (
 	STREAM ContentType = iota
 	PLAIN
@@ -88,3 +53,38 @@ const (
 	WEBM
 	MKV
 )
+
+func GetCT(str string) ContentType {
+	switch str {
+	case "application/octet-stream", "0":
+		return STREAM
+	case "text/plain", "1":
+		return PLAIN
+	case "text/html", "2":
+		return HTML
+	case "application/json", "3":
+		return JSON
+	case "text/css", "4":
+		return CSS
+	case "text/javascript", "5":
+		return JAVASCRIPT
+	case "audio/mp3", "6":
+		return MP3
+	case "audio/ogg", "7":
+		return OGG
+	case "image/jpeg", "8":
+		return JPEG
+	case "image/png", "9":
+		return PNG
+	case "image/gif", "10":
+		return GIF
+	case "video/mp4", "11":
+		return MP4
+	case "video/webm", "12":
+		return WEBM
+	case "video/mkv", "13":
+		return MKV
+	default:
+		return STREAM
+	}
+}
