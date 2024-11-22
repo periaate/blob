@@ -1,8 +1,44 @@
 package blob
 
+import (
+	"strings"
+
+	"github.com/periaate/blume/gen"
+)
+
+// Web-safe Base64 alphabet
+const webSafeBase64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+
+// IntToWebBase64 converts an integer to a web-safe Base64 string with up to two characters.
+func Encode(n int) string {
+	n = gen.Clamp(0, 4095)(n)
+
+	var result strings.Builder
+
+	// Calculate the two "digits" of the base-64 representation.
+	firstDigit := n / 64
+	secondDigit := n % 64
+
+	// Append the characters corresponding to the digits.
+	if firstDigit > 0 {
+		result.WriteByte(webSafeBase64[firstDigit])
+	}
+	result.WriteByte(webSafeBase64[secondDigit])
+
+	return result.String()
+}
+
 type ContentType int
 
-func (c ContentType) ToString() string {
+func (c ContentType) Value() int { return int(c) }
+func (c ContentType) Fmt() string {
+	if c < 64 {
+		return "A" + Encode(int(c))
+	}
+	return Encode(int(c))
+}
+
+func (c ContentType) String() string {
 	switch c {
 	case STREAM:
 		return "application/octet-stream"
@@ -56,33 +92,33 @@ const (
 
 func GetCT(str string) ContentType {
 	switch str {
-	case "application/octet-stream", "0":
+	case "application/octet-stream":
 		return STREAM
-	case "text/plain", "1":
+	case "text/plain":
 		return PLAIN
-	case "text/html", "2":
+	case "text/html":
 		return HTML
-	case "application/json", "3":
+	case "application/json":
 		return JSON
-	case "text/css", "4":
+	case "text/css":
 		return CSS
-	case "text/javascript", "5":
+	case "text/javascript":
 		return JAVASCRIPT
-	case "audio/mp3", "6":
+	case "audio/mp3":
 		return MP3
-	case "audio/ogg", "7":
+	case "audio/ogg":
 		return OGG
-	case "image/jpeg", "8":
+	case "image/jpeg":
 		return JPEG
-	case "image/png", "9":
+	case "image/png":
 		return PNG
-	case "image/gif", "10":
+	case "image/gif":
 		return GIF
-	case "video/mp4", "11":
+	case "video/mp4":
 		return MP4
-	case "video/webm", "12":
+	case "video/webm":
 		return WEBM
-	case "video/mkv", "13":
+	case "video/mkv":
 		return MKV
 	default:
 		return -1
