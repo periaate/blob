@@ -92,33 +92,33 @@ const (
 
 func GetCT(str string) ContentType {
 	switch str {
-	case "application/octet-stream":
+	case "application/octet-stream", "AA":
 		return STREAM
-	case "text/plain":
+	case "text/plain", "AB":
 		return PLAIN
-	case "text/html":
+	case "text/html", "AC":
 		return HTML
-	case "application/json":
+	case "application/json", "AD":
 		return JSON
-	case "text/css":
+	case "text/css", "AE":
 		return CSS
-	case "text/javascript":
+	case "text/javascript", "AF":
 		return JAVASCRIPT
-	case "audio/mp3":
+	case "audio/mp3", "AG":
 		return MP3
-	case "audio/ogg":
+	case "audio/ogg", "AH":
 		return OGG
-	case "image/jpeg":
+	case "image/jpeg", "AI":
 		return JPEG
-	case "image/png":
+	case "image/png", "AJ":
 		return PNG
-	case "image/gif":
+	case "image/gif", "AK":
 		return GIF
-	case "video/mp4":
+	case "video/mp4", "AL":
 		return MP4
-	case "video/webm":
+	case "video/webm", "AM":
 		return WEBM
-	case "video/mkv":
+	case "video/mkv", "AN":
 		return MKV
 	default:
 		return -1

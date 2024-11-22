@@ -31,6 +31,29 @@ func SetIndex(root string) {
 		SyncMap: gen.NewSyncMap[Blob, ContentType](),
 		Root:    root,
 	}
+
+	// Load all blobs from the root directory.
+	filepaths, _ := fsio.ReadDir(root)
+	for _, filepath := range filepaths {
+		if !fsio.IsDir(filepath) {
+			continue
+		}
+
+		bucket := fsio.Base(filepath)
+		blobpaths, _ := fsio.ReadDir(bucket)
+		for _, blobpath := range blobpaths {
+			if fsio.IsDir(blobpath) {
+				continue
+			}
+
+			blob := Blob(fsio.Base(blobpath))
+			ct := GetCT(fsio.Base(blobpath)[:2])
+			if ct == -1 {
+				continue
+			}
+			i.Set(blob, ct)
+		}
+	}
 }
 
 func CloseIndex() {
