@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"sync"
 
 	"github.com/periaate/blume/er"
 	"github.com/periaate/blume/fsio"
@@ -26,21 +27,22 @@ Content-Types are provided during a Set operation on the Index.
 
 func SetIndex(root string) {
 	fsio.EnsureDir(root)
-	i = Index{
+	i = &Index{
 		SyncMap: gen.NewSyncMap[Blob, ContentType](),
 		Root:    root,
 	}
 }
 
 func CloseIndex() {
-	i = Index{}
+	i = nil
 }
 
-var i Index
+var i *Index
 
 type Index struct {
 	*gen.SyncMap[Blob, ContentType]
 	Root string
+	mut  sync.RWMutex
 }
 
 type Blob string
@@ -100,6 +102,8 @@ func (b Blob) Type() (res ContentType, err error) {
 
 // Set attempts to set this blob.
 func (b Blob) Set(r io.Reader, ct ContentType) (err error) {
+	i.mut.Lock()
+	defer i.mut.Unlock()
 	file, err := Filepath(b, ct)
 	if err != nil {
 		return
@@ -126,8 +130,10 @@ func (b Blob) Set(r io.Reader, ct ContentType) (err error) {
 	return
 }
 
-// Del attempts to get this blob.
+// Get attempts to get this blob.
 func (b Blob) Get() (r io.Reader, ct ContentType, err error) {
+	i.mut.RLock()
+	defer i.mut.RUnlock()
 	file, ct, err := b.File()
 	if err != nil {
 		return
@@ -150,6 +156,8 @@ func (b Blob) Get() (r io.Reader, ct ContentType, err error) {
 
 // Del attempts to remove this blob.
 func (b Blob) Del() (err error) {
+	i.mut.Lock()
+	defer i.mut.Unlock()
 	file, _, err := b.File()
 	if err != nil {
 		err = er.NotFound{
