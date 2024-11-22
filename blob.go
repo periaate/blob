@@ -2,10 +2,12 @@ package blob
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"sync"
 
+	"github.com/periaate/blume/clog"
 	"github.com/periaate/blume/er"
 	"github.com/periaate/blume/fsio"
 	"github.com/periaate/blume/gen"
@@ -35,23 +37,35 @@ func SetIndex(root string) {
 	// Load all blobs from the root directory.
 	filepaths, _ := fsio.ReadDir(root)
 	for _, filepath := range filepaths {
+		fmt.Println(filepath)
 		if !fsio.IsDir(filepath) {
+			clog.Warn("bucket is not a directory", "blob", filepath)
 			continue
 		}
 
 		bucket := fsio.Base(filepath)
-		blobpaths, _ := fsio.ReadDir(bucket)
+		blobpaths, _ := fsio.ReadDir(filepath)
 		for _, blobpath := range blobpaths {
+			fmt.Println(blobpath)
 			if fsio.IsDir(blobpath) {
+				clog.Warn("blob is a directory", "blob", blobpath)
 				continue
 			}
 
-			blob := Blob(fsio.Base(blobpath))
-			ct := GetCT(fsio.Base(blobpath)[:2])
+			base := fsio.Base(blobpath)
+			ct := GetCT(base[:2])
 			if ct == -1 {
+				clog.Warn("invalid content type", "blob", blobpath)
 				continue
 			}
+
+			name := base[2:]
+
+			blob := Blob(fsio.Join(bucket, name))
 			i.Set(blob, ct)
+			if _, ok := i.Get(blob); !ok {
+				clog.Warn("blob not set in index", "blob", blob)
+			}
 		}
 	}
 }
