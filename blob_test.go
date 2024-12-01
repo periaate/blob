@@ -24,7 +24,7 @@ func TestPath(t *testing.T) {
 	for _, e := range exp {
 		b := Blob(e.Inp)
 		if !e.Err {
-			i.Set(b, e.Type)
+			I.Set(b, e.Type)
 		}
 
 		bucket, blob, err := b.Split()

@@ -11,6 +11,7 @@ import (
 	"github.com/periaate/blume/er"
 	"github.com/periaate/blume/fsio"
 	"github.com/periaate/blume/gen"
+	"github.com/periaate/blume/maps"
 	"github.com/periaate/blume/str"
 )
 
@@ -27,11 +28,15 @@ Content-Types are provided during a Set operation on the Index.
 
 */
 
-func SetIndex(root string) {
+func SetIndex(root string, opts ...gen.Option[Index]) {
 	fsio.EnsureDir(root)
-	i = &Index{
-		SyncMap: gen.NewSyncMap[Blob, ContentType](),
-		Root:    root,
+	I = &Index{
+		Sync: maps.NewSync[Blob, ContentType](),
+		Root: root,
+	}
+
+	for _, opt := range opts {
+		opt(I)
 	}
 
 	// Load all blobs from the root directory.
@@ -62,8 +67,8 @@ func SetIndex(root string) {
 			name := base[2:]
 
 			blob := Blob(fsio.Join(bucket, name))
-			i.Set(blob, ct)
-			if _, ok := i.Get(blob); !ok {
+			I.Set(blob, ct)
+			if _, ok := I.Get(blob); !ok {
 				clog.Warn("blob not set in index", "blob", blob)
 			}
 		}
@@ -71,96 +76,117 @@ func SetIndex(root string) {
 }
 
 func CloseIndex() {
-	i = nil
+	I = nil
 }
 
-var i *Index
+var I *Index
 
 type Index struct {
-	*gen.SyncMap[Blob, ContentType]
+	*maps.Sync[Blob, ContentType]
 	Root string
 	mut  sync.RWMutex
 }
 
 type Blob string
 
-func (b Blob) Split() (bucket, blob string, err error) {
+func (b Blob) Split() (bucket, blob string, nerr er.Net) {
 	sar := str.SplitWithAll(string(b), false, "/")
 	if len(sar) != 2 {
-		err = er.InvalidData{
-			Msg:     "Blob has invalid format: [" + string(b) + "]",
-			Has:     "split didn't have 2 results",
-			Expects: "Blob format is: {bucket}/{blob}",
-		}
+		nerr = er.BadRequest(
+			"tried to split", "Blob",
+			"with bad format", string(b),
+			"blob format is", "{bucket}/{blob}",
+		)
 		return
 	}
 
 	bucket = sar[0]
 	blob = sar[1]
+	bucket = str.Replace(":", "_")(bucket)
 	return
 }
 
-func Filepath(b Blob, ct ContentType) (res string, err error) {
-	bucket, blob, err := b.Split()
-	if err != nil {
+func Filepath(b Blob, ct ContentType) (res string, nerr er.Net) {
+	bucket, blob, nerr := b.Split()
+	if nerr != nil {
 		return
 	}
-	res = fsio.Join(i.Root, bucket, ct.Fmt()+blob)
+	bucket = str.Replace(":", "_")(bucket)
+	res = fsio.Join(I.Root, bucket, ct.Fmt()+blob)
 	return
 }
 
-func (b Blob) File() (res string, ct ContentType, err error) {
-	ct, err = b.Type()
-	if err != nil {
+func (b Blob) File() (res string, ct ContentType, nerr er.Net) {
+	ct, nerr = b.Type()
+	if nerr != nil {
 		return
 	}
 
-	bucket, blob, err := b.Split()
-	if err != nil {
+	bucket, blob, nerr := b.Split()
+	if nerr != nil {
 		return
 	}
 
-	res = fsio.Join(i.Root, bucket, ct.Fmt()+blob)
+	res = fsio.Join(I.Root, bucket, ct.Fmt()+blob)
 	return
 }
 
-func (b Blob) Type() (res ContentType, err error) {
-	res, ok := i.Get(b)
+func (b Blob) Type() (res ContentType, nerr er.Net) {
+	res, ok := I.Get(b)
 	if !ok {
-		err = er.NotFound{
-			Requested: "Blob",
-			From:      "Index",
-			With:      string(b),
-			Msg:       "Blob not found in index",
-		}
+		nerr = er.NotFound(
+			"Blob", "Index", string(b),
+			"msg", "Blob not found in index",
+		)
 	}
 	return
 }
 
 // Set attempts to set this blob.
-func (b Blob) Set(r io.Reader, ct ContentType) (err error) {
-	i.mut.Lock()
-	defer i.mut.Unlock()
-	file, err := Filepath(b, ct)
-	if err != nil {
+func (b Blob) Set(r io.Reader, ct ContentType) (nerr er.Net) {
+	fmt.Println("A")
+	I.mut.Lock()
+	fmt.Println("B")
+	defer I.mut.Unlock()
+	fmt.Println("C")
+	file, nerr := Filepath(b, ct)
+	if nerr != nil {
 		return
 	}
 
-	bucket, _, err := b.Split()
-	if err != nil {
+	bucket, _, nerr := b.Split()
+	if nerr != nil {
 		return
 	}
 
-	err = fsio.EnsureDir(fsio.Join(i.Root, bucket))
+	err := fsio.EnsureDir(fsio.Join(I.Root, bucket))
 	if err != nil {
-		err = er.Unexpected{Msg: "failed to ensure directory: " + err.Error()}
+		nerr = er.InternalServerError(
+			"tried to set", "Blob",
+			"with value", string(b),
+			"to", "Bucket",
+			"failed to ensure buckets existence:", err.Error(),
+		)
+
 		return
 	}
 
-	i.Set(b, ct)
+	fmt.Println("D")
+	ok := I.Set(b, ct)
+	fmt.Println("E")
+	if !ok {
+		nerr = er.Conflict(
+			"tried to set", "Blob",
+			"with value", string(b),
+			"to", "Index",
+			"because", "blob already exists",
+		)
+		return
+	}
 
+	fmt.Println("F")
 	err = fsio.WriteAll(file, r)
-	if err != nil {
+	if nerr != nil {
 		return
 	}
 
@@ -168,22 +194,17 @@ func (b Blob) Set(r io.Reader, ct ContentType) (err error) {
 }
 
 // Get attempts to get this blob.
-func (b Blob) Get() (r io.Reader, ct ContentType, err error) {
-	i.mut.RLock()
-	defer i.mut.RUnlock()
-	file, ct, err := b.File()
-	if err != nil {
+func (b Blob) Get() (r io.Reader, ct ContentType, nerr er.Net) {
+	I.mut.RLock()
+	defer I.mut.RUnlock()
+	file, ct, nerr := b.File()
+	if nerr != nil {
 		return
 	}
 
 	bar, err := os.ReadFile(file)
 	if err != nil {
-		err = er.NotFound{
-			Requested: "Blob",
-			From:      "File",
-			With:      string(b),
-			Msg:       "Blob not found in file",
-		}
+		nerr = er.NotFound("Blob", string(b), "Bucket")
 		return
 	}
 
@@ -192,28 +213,32 @@ func (b Blob) Get() (r io.Reader, ct ContentType, err error) {
 }
 
 // Del attempts to remove this blob.
-func (b Blob) Del() (err error) {
-	i.mut.Lock()
-	defer i.mut.Unlock()
-	file, _, err := b.File()
-	if err != nil {
-		err = er.NotFound{
-			Requested: "Blob",
-			From:      "Index",
-			With:      string(b),
-			Msg:       "Blob not found in index",
-		}
+func (b Blob) Del() (nerr er.Net) {
+	I.mut.Lock()
+	defer I.mut.Unlock()
+	file, _, nerr := b.File()
+	if nerr != nil {
 		return
 	}
 
-	err = os.Remove(file)
+	err := os.Remove(file)
 	if err != nil {
+		nerr = er.InternalServerError(
+			"tried to delete", "Blob",
+			"with value", string(b),
+			"from", "Bucket",
+			"failed to remove file:", err.Error(),
+		)
 		return
 	}
 
-	if !i.Del(b) {
-		err = er.Unexpected{Msg: "blob removed from index before file"}
-		return
+	if !I.Del(b) {
+		nerr = er.Conflict(
+			"encountered impossible error while deleting", "Blob",
+			"with value", string(b),
+			"from", "Index",
+			"because", "blob was removed from filesystem before index",
+		)
 	}
 
 	return

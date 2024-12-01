@@ -7,6 +7,8 @@ import (
 	"github.com/periaate/blob"
 	"github.com/periaate/blume/er"
 	"github.com/periaate/blume/fsio"
+	"github.com/periaate/blume/options"
+	"github.com/periaate/blume/x/hnet"
 )
 
 func NewServer() http.Handler {
@@ -21,7 +23,7 @@ func NewServer() http.Handler {
 func GetContentType(r *http.Request) (ct blob.ContentType, nerr er.Net) {
 	cth := r.Header.Get("Content-Type")
 	if cth == "" {
-		nerr = er.BadRequest{Msg: "Content-Type header missing"}
+		nerr = er.TypeRequired()
 		return
 	}
 
@@ -29,11 +31,13 @@ func GetContentType(r *http.Request) (ct blob.ContentType, nerr er.Net) {
 	return
 }
 
-func PathValues(r *http.Request) (bucket, name string, err er.Net) {
-	bucket = r.PathValue("bucket")
-	name = r.PathValue("name")
-	if bucket == "" || name == "" {
-		err = er.BadRequest{Msg: "bucket or blob empty"}
+func PathValues(r *http.Request) (bucket, name string, nerr er.Net) {
+	p := hnet.PathValue(r)
+	bucket = p.String("bucket", options.NotZero[string]())
+	name = p.String("name", options.NotZero[string]())
+	for _, v := range p.Nerrors {
+		nerr = v
+		return
 	}
 	return
 }
@@ -41,18 +45,18 @@ func PathValues(r *http.Request) (bucket, name string, err er.Net) {
 func Get(w http.ResponseWriter, r *http.Request) {
 	bucket, name, nerr := PathValues(r)
 	if nerr != nil {
-		http.Error(w, nerr.Error(), nerr.Status())
+		nerr.Respond(w)
 		return
 	}
 
-	reader, ct, err := blob.Blob(fsio.Join(bucket, name)).Get()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
+	reader, ct, nerr := blob.Blob(fsio.Join(bucket, name)).Get()
+	if nerr != nil {
+		nerr.Respond(w)
 		return
 	}
 
 	w.Header().Set("Content-Type", ct.String())
-	_, err = io.Copy(w, reader)
+	_, err := io.Copy(w, reader)
 	if err != nil {
 		http.Error(w, "couldn't write blob to response", http.StatusInternalServerError)
 	}
@@ -61,31 +65,31 @@ func Get(w http.ResponseWriter, r *http.Request) {
 func Set(w http.ResponseWriter, r *http.Request) {
 	bucket, name, nerr := PathValues(r)
 	if nerr != nil {
-		http.Error(w, nerr.Error(), nerr.Status())
+		nerr.Respond(w)
 		return
 	}
 
 	ct, nerr := GetContentType(r)
 	if nerr != nil {
-		http.Error(w, nerr.Error(), nerr.Status())
+		nerr.Respond(w)
 		return
 	}
 
-	err := blob.Blob(fsio.Join(bucket, name)).Set(r.Body, ct)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	nerr = blob.Blob(fsio.Join(bucket, name)).Set(r.Body, ct)
+	if nerr != nil {
+		nerr.Respond(w)
 	}
 }
 
 func Del(w http.ResponseWriter, r *http.Request) {
 	bucket, name, nerr := PathValues(r)
 	if nerr != nil {
-		http.Error(w, nerr.Error(), nerr.Status())
+		nerr.Respond(w)
 		return
 	}
 
-	err := blob.Blob(fsio.Join(bucket, name)).Del()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	nerr = blob.Blob(fsio.Join(bucket, name)).Del()
+	if nerr != nil {
+		nerr.Respond(w)
 	}
 }
